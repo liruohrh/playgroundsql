@@ -1,19 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
-import { config } from "./config";
+import { config, DEFAULT_SQLITE_EXTS, type MysqlSource } from "./config";
 
 export type SqliteTarget = { kind: "sqlite"; name: string; file: string };
-export type MysqlTarget = { kind: "mysql"; name: string; database: string };
+export type MysqlTarget = { kind: "mysql"; name: string; database: string; source: MysqlSource };
 export type DbTarget = SqliteTarget | MysqlTarget;
 
-function walk(dir: string, out: string[] = []): string[] {
+function walk(dir: string, exts: string[], out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out;
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, ent.name);
     if (ent.isDirectory()) {
       if (ent.name === "node_modules" || ent.name.startsWith(".")) continue;
-      walk(p, out);
-    } else if (config.sqliteExts.includes(path.extname(ent.name))) {
+      walk(p, exts, out);
+    } else if (exts.includes(path.extname(ent.name))) {
       out.push(p);
     }
   }
@@ -24,20 +24,30 @@ function walk(dir: string, out: string[] = []): string[] {
 export function listTargets(): DbTarget[] {
   const targets: DbTarget[] = [];
   const seen = new Map<string, string>();
+  const add = (t: DbTarget, where: string) => {
+    const prev = seen.get(t.name);
+    if (prev) throw new Error(`库名重复 "${t.name}":\n  ${prev}\n  ${where}\n给其中一个 source 加 prefix 区分`);
+    seen.set(t.name, where);
+    targets.push(t);
+  };
 
-  for (const dir of config.sqliteDirs) {
-    for (const file of walk(dir)) {
-      const name = path.basename(file, path.extname(file));
-      const prev = seen.get(name);
-      if (prev) throw new Error(`sqlite 库名重复 "${name}":\n  ${prev}\n  ${file}`);
-      seen.set(name, file);
-      targets.push({ kind: "sqlite", name, file });
+  for (const src of config.sources) {
+    const prefix = src.prefix ?? "";
+    if (src.type === "sqlite") {
+      const files = [
+        ...(src.dirs ?? []).flatMap((d) => walk(d, src.exts ?? DEFAULT_SQLITE_EXTS)),
+        ...(src.files ?? []),
+      ];
+      for (const file of files) {
+        const name = prefix + path.basename(file, path.extname(file));
+        add({ kind: "sqlite", name, file }, file);
+      }
+    } else {
+      for (const database of src.databases) {
+        const name = prefix + database;
+        add({ kind: "mysql", name, database, source: src }, `mysql ${src.user}@${src.host}:${src.port ?? 3306}/${database}`);
+      }
     }
-  }
-  for (const database of config.mysql.databases) {
-    if (seen.has(database)) throw new Error(`mysql 库名 "${database}" 与 sqlite 文件重名: ${seen.get(database)}`);
-    seen.set(database, "mysql");
-    targets.push({ kind: "mysql", name: database, database });
   }
   return targets;
 }
@@ -52,6 +62,9 @@ export function resolveTarget(name: string): DbTarget {
   }
   return t;
 }
+
+export const describeTarget = (t: DbTarget) =>
+  t.kind === "sqlite" ? t.file : `${t.source.user}@${t.source.host}:${t.source.port ?? 3306}/${t.database}`;
 
 export const schemaDir = (name: string) => path.resolve(config.schemasDir, name);
 export const queryDir = (name: string) => path.resolve(config.queriesDir, name);

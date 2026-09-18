@@ -12,7 +12,6 @@ import Database from "better-sqlite3";
 import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
 import { drizzle as drizzleMysql } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { config } from "./config";
 import { resolveTarget } from "./dbs";
 
 export function openSqlite<S extends Record<string, unknown>>(name: string, schema: S, opts?: { readonly?: boolean }) {
@@ -26,10 +25,10 @@ export function openMysql<S extends Record<string, unknown>>(name: string, schem
   const t = resolveTarget(name);
   if (t.kind !== "mysql") throw new Error(`"${name}" 不是 mysql 库`);
   const client = mysql.createPool({
-    host: config.mysql.host,
-    port: config.mysql.port,
-    user: config.mysql.user,
-    password: config.mysql.password,
+    host: t.source.host,
+    port: t.source.port ?? 3306,
+    user: t.source.user,
+    password: t.source.password,
     database: t.database,
   });
   return drizzleMysql(client, { schema, mode: "default" });

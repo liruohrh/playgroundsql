@@ -1,4 +1,4 @@
-// 由 scripts/gen.ts 通过环境变量 DB=<name> 调用，不要直接手改 dbCredentials，去改 db.config.ts
+// 由 scripts/gen.ts 通过环境变量 DB=<name> 调用；连接信息去改 db.config(.local).ts
 import { defineConfig } from "drizzle-kit";
 import { config } from "./lib/config";
 import { resolveTarget, schemaDir } from "./lib/dbs";
@@ -24,10 +24,10 @@ export default target.kind === "sqlite"
       ...common,
       dialect: "mysql",
       dbCredentials: {
-        host: config.mysql.host,
-        port: config.mysql.port,
-        user: config.mysql.user,
-        password: config.mysql.password,
+        host: target.source.host,
+        port: target.source.port ?? 3306,
+        user: target.source.user,
+        password: target.source.password,
         database: target.database,
       },
     });

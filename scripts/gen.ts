@@ -6,7 +6,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { listTargets, queryDir, resolveTarget, schemaDir, type DbTarget } from "../lib/dbs";
+import { describeTarget, listTargets, queryDir, resolveTarget, schemaDir, type DbTarget } from "../lib/dbs";
 
 const args = process.argv.slice(2);
 if (args.length === 0 || args.includes("-h") || args.includes("--help")) {
@@ -15,7 +15,7 @@ if (args.length === 0 || args.includes("-h") || args.includes("--help")) {
 }
 
 if (args.includes("--list")) {
-  for (const t of listTargets()) console.log(t.kind.padEnd(6), t.name, t.kind === "sqlite" ? t.file : "");
+  for (const t of listTargets()) console.log(t.kind.padEnd(6), t.name.padEnd(24), describeTarget(t));
   process.exit(0);
 }
 
